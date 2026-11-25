@@ -12,9 +12,12 @@
 // (-0.019 SOL), while every active-selling variant lost -0.5..-1.1 SOL: the
 // exits were realizing losses and paying fees on hundreds of round trips.
 // So: enter at the first batch the size cap allows a >= 0.01 SOL buy, and
-// exit only on a disaster stop (-25%) or a wide trailing stop once a
-// position peaked +15% (sell 10% below the peak). No fixed take-profit, no
-// stale exit — let completions and the flatten pay.
+// exit only on a disaster stop (-25%), a wide trailing stop, or a staleness
+// timeout that frees the slot. No fixed take-profit — let completions and
+// the flatten pay. First try of this shape (-0.024 SOL) was near breakeven
+// but only 15 round trips: the 5 slots stayed occupied too long. This tune
+// adds a 3000-slot stale exit and a slightly earlier trailing stop to lift
+// turnover above the 20-coin guardrail without reintroducing scalp churn.
 //
 // Sizing: each buy spends 0.05 SOL unless the per-mint size cap
 // (1% of the mint's real SOL reserve) is smaller, in which case it spends
@@ -30,9 +33,10 @@
 // Exit (sell the whole position):
 //   - no fixed take-profit
 //   - disaster stop at -25% of cost
-//   - trailing stop: once the position peaked at +15% or better, sell if it
-//     falls 10% below that peak
-//   - no stale exit; completions and the end-of-data flatten close the rest
+//   - trailing stop: once the position peaked at +8% or better, sell if it
+//     falls 8% below that peak
+//   - stale: sell after 3000 slots held without another trigger, freeing the
+//     slot for a fresher coin
 
 import { LAMPORTS_PER_SOL, runBot, type BuyInput, type SellInput } from './vendor/makefun-bot.ts';
 
@@ -44,9 +48,9 @@ const MIN_RISE = 0.98; // no real band: buy as soon as the cap allows
 const MAX_RISE = 10; // effectively no upper band
 const TAKE_PROFIT = 100; // no fixed take-profit: never triggers
 const STOP_LOSS = 0.75; // disaster stop at -25%
-const TRAIL_ARM = 1.15; // trailing stop arms once peak value is +15%
-const TRAIL_DROP = 0.9; // sell at 10% below the peak value
-const MAX_HOLD_SLOTS = 1000000000; // no stale exit
+const TRAIL_ARM = 1.08; // trailing stop arms once peak value is +8%
+const TRAIL_DROP = 0.92; // sell at 8% below the peak value
+const MAX_HOLD_SLOTS = 3000; // stale exit frees the slot for a fresher coin
 const MAX_SLIPPAGE_BPS = 5000;
 
 interface CoinMemory {
