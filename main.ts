@@ -1,26 +1,28 @@
 // Steady Pulse — a Sharpe-focused paper bot for the pump.fun replay.
 //
-// Idea: buy only small, early, buyer-led momentum on fresh curves, then exit
-// quickly on a fixed take-profit, a fixed stop-loss, a trailing stop once a
-// position is in profit, or a staleness timeout. No leverage, no shorts, one
-// round trip per mint, at most five open positions. Every decision is a pure
+// Idea: buy early, hold long. A fresh curve is bought once, on the first
+// batch where its size cap allows a buy of at least 0.01 SOL, and then held:
+// exits are only a disaster stop (-12% of cost, so a dead coin frees its
+// slot) and a trailing stop once a position peaked +8% (sell 8% below the
+// peak). No fixed take-profit, no stale exit — winners ride to curve
+// completion or the end-of-data flatten. No leverage, no shorts, one round
+// trip per mint, at most five open positions. Every decision is a pure
 // function of the harness state (no clock, no environment, no randomness), so
 // two executions of the same replay produce identical action logs.
 //
-// Variant under test: buy early, hold long. The house equal-weight baseline
-// (buy as soon as the size cap allows, never sell) is near breakeven on dev
-// (-0.019 SOL), while every active-selling variant lost -0.5..-1.1 SOL: the
-// exits were realizing losses and paying fees on hundreds of round trips.
-// The no-stale version (-0.024 SOL) was near breakeven but only 15 round
-// trips: the 5 slots stayed occupied for hours. Adding a 3000-slot stale
-// exit was far worse (-2.55 SOL, 704 trips): it forced selling into the
-// early bleed. This tune keeps no stale exit and no fixed take-profit, but
-// cuts losers earlier (disaster stop -10% instead of -25%) so dead coins
-// free their slots while winners ride to completion or the trailing stop.
+// Why this shape: the house equal-weight baseline (buy as soon as the size
+// cap allows, never sell) is near breakeven on dev (-0.019 SOL), while
+// every active-selling variant lost -0.5..-2.5 SOL: the exits were realizing
+// losses and paying fees on hundreds of round trips. The no-stale version
+// (-0.024 SOL) was near breakeven but only 15 round trips: the 5 slots
+// stayed occupied for hours. Adding a 3000-slot stale exit was far worse
+// (-2.55 SOL, 704 trips): it forced selling into the early bleed. The
+// disaster stop is tuned so turnover clears the 20-coin guardrail at the
+// smallest measured cost (SL -12%: 39 round trips, -0.058 SOL on dev).
 //
 // Sizing: each buy spends 0.05 SOL unless the per-mint size cap
 // (1% of the mint's real SOL reserve) is smaller, in which case it spends
-// the cap — but never less than 0.02 SOL, so every round trip clears the
+// the cap — but never less than 0.01 SOL, so every round trip clears the
 // 0.01 SOL minimum with room for fees.
 //
 // Entry filter (a mint is decided once, on the first batch where it qualifies):
