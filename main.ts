@@ -11,13 +11,12 @@
 // (buy as soon as the size cap allows, never sell) is near breakeven on dev
 // (-0.019 SOL), while every active-selling variant lost -0.5..-1.1 SOL: the
 // exits were realizing losses and paying fees on hundreds of round trips.
-// So: enter at the first batch the size cap allows a >= 0.01 SOL buy, and
-// exit only on a disaster stop (-25%), a wide trailing stop, or a staleness
-// timeout that frees the slot. No fixed take-profit — let completions and
-// the flatten pay. First try of this shape (-0.024 SOL) was near breakeven
-// but only 15 round trips: the 5 slots stayed occupied too long. This tune
-// adds a 3000-slot stale exit and a slightly earlier trailing stop to lift
-// turnover above the 20-coin guardrail without reintroducing scalp churn.
+// The no-stale version (-0.024 SOL) was near breakeven but only 15 round
+// trips: the 5 slots stayed occupied for hours. Adding a 3000-slot stale
+// exit was far worse (-2.55 SOL, 704 trips): it forced selling into the
+// early bleed. This tune keeps no stale exit and no fixed take-profit, but
+// cuts losers earlier (disaster stop -10% instead of -25%) so dead coins
+// free their slots while winners ride to completion or the trailing stop.
 //
 // Sizing: each buy spends 0.05 SOL unless the per-mint size cap
 // (1% of the mint's real SOL reserve) is smaller, in which case it spends
@@ -32,11 +31,10 @@
 //
 // Exit (sell the whole position):
 //   - no fixed take-profit
-//   - disaster stop at -25% of cost
+//   - disaster stop at -10% of cost
 //   - trailing stop: once the position peaked at +8% or better, sell if it
 //     falls 8% below that peak
-//   - stale: sell after 3000 slots held without another trigger, freeing the
-//     slot for a fresher coin
+//   - no stale exit; completions and the end-of-data flatten close the rest
 
 import { LAMPORTS_PER_SOL, runBot, type BuyInput, type SellInput } from './vendor/makefun-bot.ts';
 
@@ -47,10 +45,10 @@ const MIN_TRADES = 1;
 const MIN_RISE = 0.98; // no real band: buy as soon as the cap allows
 const MAX_RISE = 10; // effectively no upper band
 const TAKE_PROFIT = 100; // no fixed take-profit: never triggers
-const STOP_LOSS = 0.75; // disaster stop at -25%
+const STOP_LOSS = 0.9; // disaster stop at -10%: cut dead coins, free the slot
 const TRAIL_ARM = 1.08; // trailing stop arms once peak value is +8%
 const TRAIL_DROP = 0.92; // sell at 8% below the peak value
-const MAX_HOLD_SLOTS = 3000; // stale exit frees the slot for a fresher coin
+const MAX_HOLD_SLOTS = 1000000000; // no stale exit
 const MAX_SLIPPAGE_BPS = 5000;
 
 interface CoinMemory {
