@@ -31,7 +31,7 @@
 //
 // Exit (sell the whole position):
 //   - no fixed take-profit
-//   - disaster stop at -10% of cost
+//   - disaster stop at -15% of cost
 //   - trailing stop: once the position peaked at +8% or better, sell if it
 //     falls 8% below that peak
 //   - no stale exit; completions and the end-of-data flatten close the rest
@@ -45,7 +45,7 @@ const MIN_TRADES = 1;
 const MIN_RISE = 0.98; // no real band: buy as soon as the cap allows
 const MAX_RISE = 10; // effectively no upper band
 const TAKE_PROFIT = 100; // no fixed take-profit: never triggers
-const STOP_LOSS = 0.9; // disaster stop at -10%: cut dead coins, free the slot
+const STOP_LOSS = 0.85; // disaster stop at -15%: between the -25% version (15 trips, -0.024 SOL) and the -10% version (101 trips, -0.228 SOL)
 const TRAIL_ARM = 1.08; // trailing stop arms once peak value is +8%
 const TRAIL_DROP = 0.92; // sell at 8% below the peak value
 const MAX_HOLD_SLOTS = 1000000000; // no stale exit
