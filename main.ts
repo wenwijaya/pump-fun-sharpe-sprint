@@ -7,11 +7,14 @@
 // function of the harness state (no clock, no environment, no randomness), so
 // two executions of the same replay produce identical action logs.
 //
-// Variant under test: quality momentum. The dip-buy variant made zero trades
-// (a fresh curve's price almost never falls 5% below its create price), so
-// back to momentum — but only on established coins: many trades, several SOL
-// of real reserve, a sustained rise — and ride winners with a wide trailing
-// stop instead of a small fixed take-profit.
+// Variant under test: buy early, hold long. The house equal-weight baseline
+// (buy as soon as the size cap allows, never sell) is near breakeven on dev
+// (-0.019 SOL), while every active-selling variant lost -0.5..-1.1 SOL: the
+// exits were realizing losses and paying fees on hundreds of round trips.
+// So: enter at the first batch the size cap allows a >= 0.01 SOL buy, and
+// exit only on a disaster stop (-25%) or a wide trailing stop once a
+// position peaked +15% (sell 10% below the peak). No fixed take-profit, no
+// stale exit — let completions and the flatten pay.
 //
 // Sizing: each buy spends 0.05 SOL unless the per-mint size cap
 // (1% of the mint's real SOL reserve) is smaller, in which case it spends
@@ -19,33 +22,31 @@
 // 0.01 SOL minimum with room for fees.
 //
 // Entry filter (a mint is decided once, on the first batch where it qualifies):
-//   - at least 10 trades seen, and the latest trade was a buy (sustained flow)
-//   - price up 5%..60% versus the first price seen for the mint
-//   - at least 3 SOL of real SOL reserve (an established coin, not a flash)
-//   - the size cap allows a >= 0.02 SOL buy
+//   - at least 1 trade seen; no direction or rise band — buy as soon as the
+//     size cap allows a >= 0.01 SOL buy
+//   - at least 1 SOL of real SOL reserve
 //   - a position slot and enough free cash are available
 //
 // Exit (sell the whole position):
-//   - take profit at +20% of cost (fees included in cost)
-//   - stop loss at -6% of cost
-//   - trailing stop: once the position peaked at +10% or better, sell if it
-//     falls 6% below that peak
-//   - stale: sell after 5000 slots held without an exit trigger, freeing the
-//     slot for a fresher coin
+//   - no fixed take-profit
+//   - disaster stop at -25% of cost
+//   - trailing stop: once the position peaked at +15% or better, sell if it
+//     falls 10% below that peak
+//   - no stale exit; completions and the end-of-data flatten close the rest
 
 import { LAMPORTS_PER_SOL, runBot, type BuyInput, type SellInput } from './vendor/makefun-bot.ts';
 
 const STAKE_LAMPORTS = LAMPORTS_PER_SOL / 20n; // 0.05 SOL
-const MIN_BUY_LAMPORTS = (LAMPORTS_PER_SOL * 2n) / 100n; // 0.02 SOL
-const MIN_REAL_RESERVE_LAMPORTS = LAMPORTS_PER_SOL * 3n; // 3 SOL of real reserve
-const MIN_TRADES = 10;
-const MIN_RISE = 1.05; // +5% vs first-seen price: a sustained rise
-const MAX_RISE = 1.6; // +60% vs first-seen price
-const TAKE_PROFIT = 1.2;
-const STOP_LOSS = 0.94;
-const TRAIL_ARM = 1.1; // trailing stop arms once peak value is +10%
-const TRAIL_DROP = 0.94; // sell at 6% below the peak value
-const MAX_HOLD_SLOTS = 5000;
+const MIN_BUY_LAMPORTS = LAMPORTS_PER_SOL / 100n; // 0.01 SOL
+const MIN_REAL_RESERVE_LAMPORTS = LAMPORTS_PER_SOL; // 1 SOL of real reserve
+const MIN_TRADES = 1;
+const MIN_RISE = 0.98; // no real band: buy as soon as the cap allows
+const MAX_RISE = 10; // effectively no upper band
+const TAKE_PROFIT = 100; // no fixed take-profit: never triggers
+const STOP_LOSS = 0.75; // disaster stop at -25%
+const TRAIL_ARM = 1.15; // trailing stop arms once peak value is +15%
+const TRAIL_DROP = 0.9; // sell at 10% below the peak value
+const MAX_HOLD_SLOTS = 1000000000; // no stale exit
 const MAX_SLIPPAGE_BPS = 5000;
 
 interface CoinMemory {
@@ -144,7 +145,6 @@ await runBot({
         continue;
       }
       if (curve.trades < MIN_TRADES) continue;
-      if (!mem.lastTradeBuy) continue;
       if (curve.real_quote_reserves < MIN_REAL_RESERVE_LAMPORTS) continue;
       const cap = state.maxBuyLamports(mint);
       if (cap < MIN_BUY_LAMPORTS) continue;
