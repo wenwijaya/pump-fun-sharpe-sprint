@@ -14,18 +14,18 @@
 //
 // Entry filter (a mint is decided once, on the first batch where it qualifies):
 //   - at least 3 trades seen, and the latest trade was a buy (buyer-led flow)
-//   - price up 3%..70% versus the first price seen for the mint (momentum
-//     that is real but not yet a vertical blow-off)
+//   - price up 1%..25% versus the first price seen for the mint (catch the
+//     first wave, not the top of a blow-off)
 //   - at least 1 SOL of real SOL reserve (real buyers have arrived)
 //   - the size cap allows a >= 0.02 SOL buy
 //   - a position slot and enough free cash are available
 //
 // Exit (sell the whole position):
-//   - take profit at +12% of cost (fees included in cost)
-//   - stop loss at -8% of cost
-//   - trailing stop: once the position peaked at +6% or better, sell if it
-//     falls 7% below that peak
-//   - stale: sell after 2500 slots held without an exit trigger, freeing the
+//   - take profit at +6% of cost (fees included in cost)
+//   - stop loss at -5% of cost
+//   - trailing stop: once the position peaked at +3% or better, sell if it
+//     falls 3% below that peak
+//   - stale: sell after 1200 slots held without an exit trigger, freeing the
 //     slot for a fresher coin
 
 import { LAMPORTS_PER_SOL, runBot, type BuyInput, type SellInput } from './vendor/makefun-bot.ts';
@@ -34,13 +34,13 @@ const STAKE_LAMPORTS = LAMPORTS_PER_SOL / 20n; // 0.05 SOL
 const MIN_BUY_LAMPORTS = (LAMPORTS_PER_SOL * 2n) / 100n; // 0.02 SOL
 const MIN_REAL_RESERVE_LAMPORTS = LAMPORTS_PER_SOL; // 1 SOL of real reserve
 const MIN_TRADES = 3;
-const MIN_RISE = 1.03; // +3% vs first-seen price
-const MAX_RISE = 1.7; // +70% vs first-seen price
-const TAKE_PROFIT = 1.12;
-const STOP_LOSS = 0.92;
-const TRAIL_ARM = 1.06; // trailing stop arms once peak value is +6%
-const TRAIL_DROP = 0.93; // sell at 7% below the peak value
-const MAX_HOLD_SLOTS = 2500;
+const MIN_RISE = 1.01; // +1% vs first-seen price: catch the first wave, not the top
+const MAX_RISE = 1.25; // +25% vs first-seen price
+const TAKE_PROFIT = 1.06;
+const STOP_LOSS = 0.95;
+const TRAIL_ARM = 1.03; // trailing stop arms once peak value is +3%
+const TRAIL_DROP = 0.97; // sell at 3% below the peak value
+const MAX_HOLD_SLOTS = 1200;
 const MAX_SLIPPAGE_BPS = 5000;
 
 interface CoinMemory {
