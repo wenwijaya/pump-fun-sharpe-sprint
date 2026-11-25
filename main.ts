@@ -7,25 +7,29 @@
 // function of the harness state (no clock, no environment, no randomness), so
 // two executions of the same replay produce identical action logs.
 //
+// Variant under test: dip-buy. Most fresh curves dump after the first wave,
+// so instead of chasing the rise, buy the dip — a coin that fell 5–30% from
+// its first-seen price while the latest trade is a buy (sellers exhausted,
+// buyers stepping back in) — and scalp the bounce.
+//
 // Sizing: each buy spends 0.05 SOL unless the per-mint size cap
 // (1% of the mint's real SOL reserve) is smaller, in which case it spends
 // the cap — but never less than 0.02 SOL, so every round trip clears the
 // 0.01 SOL minimum with room for fees.
 //
 // Entry filter (a mint is decided once, on the first batch where it qualifies):
-//   - at least 3 trades seen, and the latest trade was a buy (buyer-led flow)
-//   - price up 1%..25% versus the first price seen for the mint (catch the
-//     first wave, not the top of a blow-off)
+//   - at least 5 trades seen, and the latest trade was a buy (buyers returning)
+//   - price down 5%..30% versus the first price seen for the mint (the dip)
 //   - at least 1 SOL of real SOL reserve (real buyers have arrived)
 //   - the size cap allows a >= 0.02 SOL buy
 //   - a position slot and enough free cash are available
 //
 // Exit (sell the whole position):
-//   - take profit at +6% of cost (fees included in cost)
+//   - take profit at +8% of cost (fees included in cost)
 //   - stop loss at -5% of cost
-//   - trailing stop: once the position peaked at +3% or better, sell if it
-//     falls 3% below that peak
-//   - stale: sell after 1200 slots held without an exit trigger, freeing the
+//   - trailing stop: once the position peaked at +4% or better, sell if it
+//     falls 4% below that peak
+//   - stale: sell after 1500 slots held without an exit trigger, freeing the
 //     slot for a fresher coin
 
 import { LAMPORTS_PER_SOL, runBot, type BuyInput, type SellInput } from './vendor/makefun-bot.ts';
@@ -33,14 +37,14 @@ import { LAMPORTS_PER_SOL, runBot, type BuyInput, type SellInput } from './vendo
 const STAKE_LAMPORTS = LAMPORTS_PER_SOL / 20n; // 0.05 SOL
 const MIN_BUY_LAMPORTS = (LAMPORTS_PER_SOL * 2n) / 100n; // 0.02 SOL
 const MIN_REAL_RESERVE_LAMPORTS = LAMPORTS_PER_SOL; // 1 SOL of real reserve
-const MIN_TRADES = 3;
-const MIN_RISE = 1.01; // +1% vs first-seen price: catch the first wave, not the top
-const MAX_RISE = 1.25; // +25% vs first-seen price
-const TAKE_PROFIT = 1.06;
+const MIN_TRADES = 5;
+const MIN_RISE = 0.7; // -30% vs first-seen price: the dip
+const MAX_RISE = 0.95; // -5% vs first-seen price: not yet bounced back
+const TAKE_PROFIT = 1.08;
 const STOP_LOSS = 0.95;
-const TRAIL_ARM = 1.03; // trailing stop arms once peak value is +3%
-const TRAIL_DROP = 0.97; // sell at 3% below the peak value
-const MAX_HOLD_SLOTS = 1200;
+const TRAIL_ARM = 1.04; // trailing stop arms once peak value is +4%
+const TRAIL_DROP = 0.96; // sell at 4% below the peak value
+const MAX_HOLD_SLOTS = 1500;
 const MAX_SLIPPAGE_BPS = 5000;
 
 interface CoinMemory {
